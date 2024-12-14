@@ -9,6 +9,8 @@ namespace RaycastMapDemo
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
 
+        private RaycastRenderer raycastRenderer;
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -18,7 +20,7 @@ namespace RaycastMapDemo
 
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
+            raycastRenderer = new RaycastRenderer(GraphicsDevice, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
 
             base.Initialize();
         }
@@ -44,7 +46,13 @@ namespace RaycastMapDemo
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // TODO: Add your drawing code here
+            raycastRenderer.Draw(GraphicsDevice, gameTime);
+
+            _spriteBatch.Begin();
+
+            _spriteBatch.Draw(raycastRenderer, Vector2.Zero, Color.White);
+
+            _spriteBatch.End();
 
             base.Draw(gameTime);
         }
