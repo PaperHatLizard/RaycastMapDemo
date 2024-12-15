@@ -8,8 +8,11 @@ namespace RaycastMapDemo
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
+        private SpriteFont _spriteFont;
 
         private RaycastRenderer raycastRenderer;
+        private Player player;
+        private FrameCounter _frameCounter = new FrameCounter();
 
         public Game1()
         {
@@ -20,7 +23,17 @@ namespace RaycastMapDemo
 
         protected override void Initialize()
         {
-            raycastRenderer = new RaycastRenderer(GraphicsDevice, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
+            _spriteFont = Content.Load<SpriteFont>("font");
+
+            Map map = new Map(10,10);
+            player = new Player(2, 7, 0, map);
+
+
+            raycastRenderer = new RaycastRenderer(
+                GraphicsDevice, 
+                GraphicsDevice.Viewport.Width, 
+                GraphicsDevice.Viewport.Height, 
+                map, player);
 
             base.Initialize();
         }
@@ -37,6 +50,8 @@ namespace RaycastMapDemo
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
+            player.Update(gameTime);
+
             // TODO: Add your update logic here
 
             base.Update(gameTime);
@@ -51,6 +66,14 @@ namespace RaycastMapDemo
             _spriteBatch.Begin();
 
             _spriteBatch.Draw(raycastRenderer, Vector2.Zero, Color.White);
+
+            var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            _frameCounter.Update(deltaTime);
+
+            var fps = string.Format("FPS: {0}", _frameCounter.AverageFramesPerSecond);
+
+            _spriteBatch.DrawString(_spriteFont, fps, new Vector2(1, 1), Color.Black);
 
             _spriteBatch.End();
 

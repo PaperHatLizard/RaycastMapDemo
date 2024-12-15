@@ -10,28 +10,68 @@ namespace RaycastMapDemo
 {
     public class RaycastRenderer : Texture2D
     {
-        public Color[] pixels;
+        private Color[] pixels;
+        private Map map;
+        private Player player;
+        private int FOV = 60;
 
-        public RaycastRenderer(GraphicsDevice graphicsDevice, int width, int height) : base(graphicsDevice, width, height) 
+
+        public RaycastRenderer(GraphicsDevice graphicsDevice, int width, int height, Map map, Player player) : base(graphicsDevice, width, height) 
         {
-            pixels = new Color[width * height];
+            this.pixels = new Color[width * height];
+            this.map = map;
+            this.player = player;
         }
 
         public void Draw(GraphicsDevice graphicsDevice, GameTime time)
         {
             Array.Clear(pixels);
 
+            //Draws from top left corner to bottom right corner
+            //Draws column by column
             for (int x = 0; x < Width; x++)
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    SetPixel(x, y, Color.Black);
+                    if (y < Height / 2)
+                    {
+                        SetPixel(x, y, map.CeilingColor);
+                    }
+                    else
+                    {
+                        SetPixel(x, y, map.FloorColor);
+                    }
                 }
-            }
 
+                DrawLine(x);
+            }
 
             SetData(pixels);
         }
+
+        public void DrawLine(int col)
+        {
+            int size = Height;
+
+            float angle = player.Rotation - (FOV / 2) + (col * FOV / Width);
+
+            float distance = DDA.DDALine(
+                (int)player.X, (int)player.Y, angle, 100, map);
+
+            if (distance == -1) return;
+
+            int lineHeight = (int)(size / distance);
+
+            int start = (size / 2) - (lineHeight / 2);
+            int end = start + lineHeight;
+
+            for (int i = start; i < end; i++)
+            {
+                SetPixel(col, i, map.WallColor);
+
+            }
+        }
+
 
         /// <summary>
         /// Sets the color buffer to be used to mass set the texture later as to not
