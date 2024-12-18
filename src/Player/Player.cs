@@ -11,23 +11,33 @@ namespace RaycastMapDemo
 {
     public class Player
     {
+        public static Player Instance { get; private set; }
+
         public float X = 0;
         public float Y = 0;
         public float Rotation = 0;
         private Map map;
-        public float Speed = 5f;
+        public float Speed = 3f;
 
         public Player(float x, float y, float rotation, Map map)
         {
+            if (Instance != null)
+                return;
+
+            Instance = this;
+
             X = x;
             Y = y;
             Rotation = rotation;
             this.map = map;
         }
 
+        Vector2 mousePosition;
+
         public void Update(GameTime gameTime)
         {
             KeyboardState keyboardState = Keyboard.GetState();
+            MouseState mouseState = Mouse.GetState();
 
             if (keyboardState.IsKeyDown(Keys.W))
             {
@@ -48,24 +58,54 @@ namespace RaycastMapDemo
             {
                 Move(MathF.Sin(Rotation), -MathF.Cos(Rotation), gameTime);
             }
+
+            Vector2 mouseDelta = mousePosition - new Vector2(mouseState.X, mouseState.Y);
+
+            mousePosition = new Vector2(mouseState.X, mouseState.Y);
+
+            Rotation += mouseDelta.X * 0.01f;
+
+
         }
 
         public void Move(float dx, float dy, GameTime gameTime)
         {
-            float velX = X + dx;
-            float velY = Y + dy;
-            float delta = gameTime.ElapsedGameTime.Milliseconds / 1000f;
-            //Disallow movement if there is a wall at the new position
-            if (map.GetMapAt((int)velX, (int)velY) != 0)
-                return;
+            // Get time delta for smooth movement
+            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            velX = velX * delta * Speed;
-            velY = velY * delta * Speed;
+            // Calculate velocity based on direction and speed
+            float velX = dx * Speed * delta;
+            float velY = dy * Speed * delta;
 
-            Debug.WriteLine("newX: " + velX + " newY: " + velY);
+            // Calculate the predicted future position after movement
+            float newX = X + velX;
+            float newY = Y + velY;
 
-            X = X + velX;
-            Y = Y + velY;
+            // Check for collision at both the current and predicted positions
+            int currentMapValue = map.GetMapAt((int)Math.Round(X), (int)Math.Round(Y));
+            int newMapValue = map.GetMapAt((int)Math.Round(newX), (int)Math.Round(newY));
+
+            Debug.WriteLine("CurrentX: " + X + " CurrentY: " + Y);
+            Debug.WriteLine("newX: " + newX + " newY: " + newY);
+            Debug.WriteLine("currentMapValue: " + currentMapValue + " newMapValue: " + newMapValue);
+
+            // Disallow movement if there is a wall at the current or next position
+            //if (currentMapValue != 0 || newMapValue != 0)
+            //    return;
+
+            // Apply the movement, translating the position based on rotation
+            Vector2 velocity = new Vector2(velX, velY);
+
+            // Translate the velocity based on the player's rotation
+            Vector2 translatedMovement;
+            translatedMovement.X = velocity.X * (float)Math.Cos(Rotation) - velocity.Y * (float)Math.Sin(Rotation);
+            translatedMovement.Y = velocity.X * (float)Math.Sin(Rotation) + velocity.Y * (float)Math.Cos(Rotation);
+
+            // Update player position
+            X += translatedMovement.X;
+            Y += translatedMovement.Y;
         }
+
+
     }
 }
