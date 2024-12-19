@@ -43,49 +43,20 @@ namespace RaycastMapDemo
 
         private void DrawFOV(int scale)
         {
-            float columns = 20;
-
-            float minAngleScale = 0;
-            float maxAngleScale = 0;
+            float columns = 40;
 
             //simulate columns on screen
-            for(int column = 0; column < columns; column++)
+            for(float column = 0; column < columns; column++)
             {
-                float angleScale = ((((float)column) / ((float)columns)) - 0.5f) * 8f;
+                float angleScale = ((column / columns) - 0.5f) * 2f;
 
-                float b = MathHelper.ToDegrees(player.Rotation) + 90;
+                float fov = MathHelper.ToRadians(40);
 
-                b = MathHelper.ToRadians(b);
+                float angle = player.Rotation + (angleScale * fov);
 
                 Vector2 lineStart = new Vector2(player.X, player.Y);
 
-                lineStart += new Vector2(MathF.Cos(b), MathF.Sin(b)) * angleScale;
-
-                Vector2 lineEnd = new Vector2(player.X, player.Y) + new Vector2(MathF.Cos(player.Rotation), MathF.Sin(player.Rotation)) * 10;
-
-                lineEnd += new Vector2(MathF.Cos(b), MathF.Sin(b)) * angleScale;
-
-                if (column == 0)
-                {
-                    minAngleScale = angleScale;
-                }
-                if (column == columns - 1)
-                {
-                    maxAngleScale = angleScale;
-                }
-
-                Line line = new Line()
-                {
-                    Start = lineStart * scale,
-                    End = lineEnd * scale,
-                    Color = Color.Green
-                };
-
-                DrawLine(line, 2, spriteBatch);
-
-                float lineAngle = MathF.Atan2(lineEnd.Y - lineStart.Y, lineEnd.X - lineStart.X);
-
-                Bresenham(lineStart, lineAngle, scale, Color.Purple, Color.Orange);
+                Bresenham(lineStart, angle, scale, Color.Purple, Color.Orange);
             }
 
             
@@ -96,8 +67,7 @@ namespace RaycastMapDemo
             playerDirection.Color = Color.Blue;
 
             DrawLine(playerDirection, 4, spriteBatch);
-            Debug.WriteLine($"Minimum Angle Scale: {minAngleScale} Maximum Angle Scale: {maxAngleScale}");
-
+            
         }
 
         private void Bresenham(Vector2 startPosition, float angle, int scale, Color lineColor, Color hitColor)
@@ -105,8 +75,8 @@ namespace RaycastMapDemo
             float dx = MathF.Cos(angle);
             float dy = MathF.Sin(angle);
 
-            float xStep = MathF.Sign(dx);
-            float yStep = MathF.Sign(dy);
+            float xStep = MathF.Sign(dx)/2f;
+            float yStep = MathF.Sign(dy)/2f;
 
             float xPos = startPosition.X;
             float yPos = startPosition.Y;
@@ -117,14 +87,12 @@ namespace RaycastMapDemo
             float tDeltaX = 1.0f / MathF.Abs(dx);
             float tDeltaY = 1.0f / MathF.Abs(dy);
 
-            int maxRayLength = 25;
+            int maxRayLength = 30;
             float lastSideHit = -1;
 
             for (int i = 0; i < maxRayLength; i++)
             {
                 int mapValue = map.GetMapAt((int)xPos, (int)yPos);
-
-                
 
                 if (mapValue != 0)
                 {
@@ -173,21 +141,25 @@ namespace RaycastMapDemo
             DrawCircle(cell * scale, 5, spriteBatch, Color.Red);
 
             // Determine the intersection line based on side hit
-            if (lastSideHit == 1) // Left
+            //X+
+            if (lastSideHit == 1)
             {
                 intersectionStart = new Vector2(cell.X - cellSize, cell.Y - cellSize) * scale;
                 intersectionEnd = new Vector2(cell.X - cellSize, cell.Y + cellSize) * scale;
             }
-            else if (lastSideHit == 2) // Right
+            //X-
+            else if (lastSideHit == 2)
             {
                 intersectionStart = new Vector2(cell.X + cellSize, cell.Y - cellSize) * scale;
                 intersectionEnd = new Vector2(cell.X + cellSize, cell.Y + cellSize) * scale;
             }
-            else if (lastSideHit == 3) // Top
+            //Y+
+            else if (lastSideHit == 3)
             {
                 intersectionStart = new Vector2(cell.X - cellSize, cell.Y - cellSize) * scale;
                 intersectionEnd = new Vector2(cell.X + cellSize, cell.Y - cellSize) * scale;
             }
+            //Y-
             else if (lastSideHit == 4)
             {
                 intersectionStart = new Vector2(cell.X - cellSize, cell.Y + cellSize) * scale;
@@ -221,12 +193,21 @@ namespace RaycastMapDemo
 
             Vector2 intersectionPoint = new Vector2(x, y);
 
+
             float distance = Vector2.Distance(startLine.Start, intersectionPoint);
+
+            float intersectionAngle = MathF.Atan2(intersectionPoint.Y - startLine.Start.Y, intersectionPoint.X - startLine.Start.X);
+
+            float adjustedDistance = distance * MathF.Cos(player.Rotation - intersectionAngle);
+
+            Vector2 newIntersectionPoint = startLine.Start + (new Vector2(MathF.Cos(intersectionAngle), MathF.Sin(intersectionAngle)) * adjustedDistance);
+
+            DrawCircle(newIntersectionPoint, 5, spriteBatch, Color.Green);
 
             Line distanceLine = new Line()
             {
                 Start = startLine.Start,
-                End = intersectionPoint,
+                End = newIntersectionPoint,
                 Color = Color.Yellow
             };
 

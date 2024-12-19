@@ -81,18 +81,27 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     // Set initial color to ceiling or floor color
     color = row < ScreenSize.y / 2 ? ceilingColor : floorColor;
     
-    // Draw wall if necessary
+    // Draw wall according to face side
     if (drawWall >= 1)
     {
-        if (drawWall  == 1)
+        //X+
+        if (drawWall == 1)
             color = float4(0, 0, 1, 0);
+        //X-
         else if (drawWall == 2)
             color = float4(0, 1, 0, 0);
+        //Y+
         else if (drawWall == 3)
             color = float4(1, 0, 0, 0);
+        //Y-
         else if (drawWall == 4)
             color = float4(0, 1, 1, 0);
 
+    }
+    
+    if (drawWall == -2)
+    {
+        color = float4(1, 1, 0, 1);
     }
     
     color.a = 1.0;
@@ -102,41 +111,35 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 
 int ShouldDrawWall(int column, int row)
 {
-    int size = ScreenSize.y;
+    float wallHeight = 1;
     //range -1 to 1
-    float angleScale = ((float(column) / float(ScreenSize.x)) - 0.5) * 5;
+    float angleScale = ((float(column) / float(ScreenSize.x)) - 0.5) * 2;
     
-    float b = degrees(PlayerRotation) + 90;
+    float fov = radians(40);
     
-    b = radians(b);
+    float angle = PlayerRotation + (angleScale * fov);
     
     float2 lineStart = float2(PlayerPosition.x, PlayerPosition.y);
     
-    lineStart += float2(cos(b), sin(b)) * angleScale;
-    
-    float2 lineEnd = float2(PlayerPosition.x, PlayerPosition.y) + float2(cos(PlayerRotation), sin(PlayerRotation));
-    
-    lineEnd += float2(cos(b), sin(b)) * angleScale;
-    
-    float lineAngle = atan2(lineEnd.y - lineStart.y, lineEnd.x - lineStart.x);
-    
-    float2 sideAndDistance = Bresenham(lineStart.x, lineStart.y, lineAngle);
+    float2 sideAndDistance = Bresenham(lineStart.x, lineStart.y, angle);
     
     float distance = sideAndDistance.y;
     
-    //distance += distance(lineStart, float2(PlayerPosition.x, PlayerPosition.y));
+    //Adjust for fish eye effect
+    distance *= cos(PlayerRotation - angle);
     
-    if (distance < 0)
-    {
-        return -1;
-    }
-    
-    float wallHeight = size / (distance + 0.001);
-    float wallStart = (size / 2.0) - (wallHeight / 2.0);
-    float wallEnd = (size / 2.0) + (wallHeight / 2.0);
+    float adjustedWallHeight = wallHeight * ScreenSize.y / distance;
+    float wallStart = (ScreenSize.y / 2.0) - (adjustedWallHeight / 2.0);
+    float wallEnd = (ScreenSize.y / 2.0) + (adjustedWallHeight / 2.0);
 
     bool isWall = (row >= wallStart && row <= wallEnd);
 
+    if (distance < 0)
+    {
+        if (isWall)
+            return -2;
+    }
+    
     return isWall ? sideAndDistance.x : 0;
 }
 
@@ -164,16 +167,22 @@ float2 Bresenham(float x0, float y0, float angle)
     [unroll(maxRayLength)]
     for (int i = 0; i < maxRayLength; i++)
     {
-        float4 mapValue = tex2D(MapSampler, MapToUVCoords(float2(xPos, yPos)));
-
-        if (mapValue.r == 0 || mapValue.g == 0 || mapValue.b == 0)
+        //clamp position for float imprecision
+        float xMap = floor(xPos * 1000 + 0.5) / 1000; 
+        float yMap = floor(yPos * 1000 + 0.5) / 1000;
+        
+        float4 mapValue = tex2D(MapSampler, MapToUVCoords(float2(xMap, yMap)));
+        
+        if (mapValue.r != 1 && mapValue.g != 1 && mapValue.b != 1)
         {
             if (lastSideHit == -1)
-                return float2(-1, -1);
+                lastSideHit == 1;
             
-            Line startLine = { float2(x0, y0), 
+            Line startLine = { 
+                float2(x0, y0), 
                 float2(x0, y0) + float2(cos(angle), sin(angle)) * maxRayLength
             };
+            
             float distance = DistanceFromLineIntersection(startLine, float2(xPos, yPos), lastSideHit);
             
             if (distance == -1)
@@ -184,13 +193,13 @@ float2 Bresenham(float x0, float y0, float angle)
 
         if (tMaxX < tMaxY)
         {
-            lastSideHit = tDeltaX > 0 ? 1 : 2;
+            lastSideHit = dx > 0 ? 1 : 2;
             tMaxX += tDeltaX;
             xPos += xStep;
         }
         else
         {
-            lastSideHit = tDeltaX > 0 ? 3 : 4;
+            lastSideHit = dy > 0 ? 3 : 4;
             tMaxY += tDeltaY;
             yPos += yStep;
         }
@@ -232,8 +241,8 @@ float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int last
     else
         return -1;
     
-    float m1 = (startLine.End.y - startLine.Start.y) / (startLine.End.x - startLine.Start.x + 0.001);
-    float m2 = (intersectLine.End.y - intersectLine.Start.y) / (intersectLine.End.x - intersectLine.Start.x + 0.001);
+    float m1 = (startLine.End.y - startLine.Start.y) / (startLine.End.x - startLine.Start.x + 0.00001);
+    float m2 = (intersectLine.End.y - intersectLine.Start.y) / (intersectLine.End.x - intersectLine.Start.x + 0.00001);
     
     //If slopes are nearly identical then these lines probably dont intersect
     if (abs(m1 - m2) < 0.0001)
@@ -261,6 +270,8 @@ float Frac(float value)
 
 float2 MapToUVCoords(float2 mapCoords)
 {
+    //For some reason epsi is needed to prevent the texture
+    //from being sampled at the wrong position
     float x = (float(mapCoords.x) / float(MapSize.x));
     float y = (float(mapCoords.y) / float(MapSize.y));
     float epsi = 0.0001;

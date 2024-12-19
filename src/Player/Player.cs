@@ -59,6 +59,15 @@ namespace RaycastMapDemo
                 Move(MathF.Sin(Rotation), -MathF.Cos(Rotation), gameTime);
             }
 
+            if (keyboardState.IsKeyDown(Keys.J))
+            {
+                this.Y = 6.9988f;
+            }
+            if (keyboardState.IsKeyDown(Keys.K))
+            {
+                this.Y = 7.00000001f;
+            }
+
             Vector2 mouseDelta = mousePosition - new Vector2(mouseState.X, mouseState.Y);
 
             mousePosition = new Vector2(mouseState.X, mouseState.Y);
@@ -110,6 +119,9 @@ namespace RaycastMapDemo
             // Update player position
             X += translatedMovement.X;
             Y += translatedMovement.Y;
+
+            X = (float)Math.Round(X, 2);
+            Y = (float)Math.Round(Y, 2);
         }
 
 

@@ -31,7 +31,7 @@ namespace RaycastMapDemo
             Width = width;
             Height = height;
 
-            map = new int[Width+1, Height+1];
+            map = new int[Width, Height];
 
             floorColor = Color.Gray;
             ceilingColor = Color.CornflowerBlue;
@@ -43,6 +43,8 @@ namespace RaycastMapDemo
                 for (int y = 0; y < Height; y++)
                 {
                     {
+                        
+
                         if (x == 0 || x == Width - 1 || y == 0 || y == Height - 1)
                         {
                             SetMapAt(x, y, 1);
@@ -56,6 +58,11 @@ namespace RaycastMapDemo
             }
 
             SetMapAt(4, 4, 1);
+            SetMapAt(3, 2, 1);
+            SetMapAt(5, 4, 1);
+            SetMapAt(4, 7, 1);
+            SetMapAt(16, 4, 1);
+            SetMapAt(18, 5, 1);
 
         }
 
