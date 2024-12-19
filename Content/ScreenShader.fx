@@ -61,6 +61,8 @@ int ShouldDrawWall(int row, int column);
 
 float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int lastSideHit);
 
+float Frac(float value);
+
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
     float4 color;
@@ -101,18 +103,28 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 int ShouldDrawWall(int column, int row)
 {
     int size = ScreenSize.y;
-    
-    float fov = 40;
     //range -1 to 1
-    float currentAngle = ((column / ScreenSize.x) - 0.5) * 2;
+    float angleScale = ((float(column) / float(ScreenSize.x)) - 0.5) * 5;
     
-    float fovAngle = radians(fov) * currentAngle;
-
-    float angle = PlayerRotation + fovAngle;
-
-    float2 sideAndDistance = Bresenham(PlayerPosition.x, PlayerPosition.y, angle);
+    float b = degrees(PlayerRotation) + 90;
+    
+    b = radians(b);
+    
+    float2 lineStart = float2(PlayerPosition.x, PlayerPosition.y);
+    
+    lineStart += float2(cos(b), sin(b)) * angleScale;
+    
+    float2 lineEnd = float2(PlayerPosition.x, PlayerPosition.y) + float2(cos(PlayerRotation), sin(PlayerRotation));
+    
+    lineEnd += float2(cos(b), sin(b)) * angleScale;
+    
+    float lineAngle = atan2(lineEnd.y - lineStart.y, lineEnd.x - lineStart.x);
+    
+    float2 sideAndDistance = Bresenham(lineStart.x, lineStart.y, lineAngle);
     
     float distance = sideAndDistance.y;
+    
+    //distance += distance(lineStart, float2(PlayerPosition.x, PlayerPosition.y));
     
     if (distance < 0)
     {
@@ -134,21 +146,20 @@ float2 Bresenham(float x0, float y0, float angle)
     float dx = cos(angle);
     float dy = sin(angle);
     
-    float xStep = sign(cos(angle));
-    float yStep = sign(sin(angle));
+    float xStep = sign(dx);
+    float yStep = sign(dy);
 
     float xPos = x0;
     float yPos = y0;
     
-    float tMaxX = (xStep > 0 ? (1.0 - frac(x0)) : frac(x0)) / dx;
-    float tMaxY = (yStep > 0 ? (1.0 - frac(y0)) : frac(y0)) / dy;
+    float tMaxX = xStep > 0 ? (1.0 - Frac(xPos)) / dx : Frac(xPos) / -dx;
+    float tMaxY = yStep > 0 ? (1.0 - Frac(yPos)) / dy : Frac(yPos) / -dy;
 
-    float tDeltaX = 1.0 / dx;
-    float tDeltaY = 1.0 / dy;
-    
-    float lastSideHit = -1;
+    float tDeltaX = 1.0 / abs(dx);
+    float tDeltaY = 1.0 / abs(dy);
     
     int maxRayLength = 30;
+    float lastSideHit = -1;
 
     [unroll(maxRayLength)]
     for (int i = 0; i < maxRayLength; i++)
@@ -160,7 +171,9 @@ float2 Bresenham(float x0, float y0, float angle)
             if (lastSideHit == -1)
                 return float2(-1, -1);
             
-            Line startLine = { float2(PlayerPosition.x, PlayerPosition.y), float2(dx, dy) * maxRayLength };
+            Line startLine = { float2(x0, y0), 
+                float2(x0, y0) + float2(cos(angle), sin(angle)) * maxRayLength
+            };
             float distance = DistanceFromLineIntersection(startLine, float2(xPos, yPos), lastSideHit);
             
             if (distance == -1)
@@ -239,6 +252,10 @@ float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int last
     return distance(startLine.Start, intersection);
 }
 
+float Frac(float value)
+{
+    return value - floor(value);
+}
 
 
 

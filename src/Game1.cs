@@ -31,11 +31,20 @@ namespace RaycastMapDemo
         protected override void Initialize()
         {
             map = new Map(20,20);
-            player = new Player(2, 7, 0, map);
+            player = new Player(10, 10, 0, map);
 
             shaderDebug = new ShaderDebug(player, map, GraphicsDevice);
 
-            GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
+            SamplerState borderSampler = new SamplerState
+            {
+                AddressU = TextureAddressMode.Border,
+                AddressV = TextureAddressMode.Border,
+                AddressW = TextureAddressMode.Border,
+                BorderColor = Color.Magenta,
+                Filter = TextureFilter.Point
+            };
+
+            GraphicsDevice.SamplerStates[0] = borderSampler;
 
             base.Initialize();
         }
@@ -84,6 +93,11 @@ namespace RaycastMapDemo
                         MapSamplePoint.Y--;
                 }
 
+                if (keyboardState.IsKeyDown(Keys.Tab))
+                {
+                    DrawDebug = !DrawDebug;
+                }
+
                 lastPressCount = keyboardState.GetPressedKeyCount();
             }
 
@@ -93,13 +107,15 @@ namespace RaycastMapDemo
             base.Update(gameTime);
         }
 
+        bool DrawDebug = false;
+
         Vector2 MapSamplePoint = new Vector2(0, 0);
 
         protected override void Draw(GameTime gameTime)
         {
             DrawGame(gameTime);
-
-            shaderDebug.Draw();
+            if (DrawDebug)
+                shaderDebug.Draw();
         }
 
         public void DrawGame(GameTime gameTime)
@@ -118,26 +134,6 @@ namespace RaycastMapDemo
             _screenShader.Parameters["PlayerRotation"]?.SetValue(player.Rotation);
             _screenShader.Parameters["MapSamplePoint"]?.SetValue(MapSamplePoint);
             _screenShader.CurrentTechnique.Passes[0].Apply();
-
-            //mapTex = _screenShader.Parameters["MapTexture"].GetValueTexture2D();
-            Color[] colors1D = new Color[mapTex.Width * mapTex.Height];
-            mapTex.GetData(colors1D);
-
-            Color[,] colors2D = new Color[mapTex.Width, mapTex.Height];
-            for (int x = 0; x < mapTex.Width; x++)
-            {
-                for (int y = 0; y < mapTex.Height; y++)
-                {
-                    colors2D[x, y] = colors1D[x + y * mapTex.Width];
-                }
-            }
-
-            Color pixel = colors2D[(int)MapSamplePoint.X, (int)MapSamplePoint.Y];
-
-            Debug.WriteLine($"Map Sample Point: " + MapSamplePoint + " Color: " + pixel);
-            Debug.WriteLine($"Sample Point: " + MapSamplePoint.X / map.Width + ":" + MapSamplePoint.Y / map.Height);
-
-
 
 
             _spriteBatch.Begin(SpriteSortMode.Immediate, null, null, null, null, _screenShader);

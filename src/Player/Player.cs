@@ -15,7 +15,7 @@ namespace RaycastMapDemo
 
         public float X = 0;
         public float Y = 0;
-        public float Rotation = 0;
+        public float Rotation { get; private set; }
         private Map map;
         public float Speed = 3f;
 
@@ -65,6 +65,11 @@ namespace RaycastMapDemo
 
             Rotation += mouseDelta.X * 0.01f;
 
+            //Clamp rotation
+            if (Rotation >= Math.PI * 2)
+                Rotation = 0;
+            else if (Rotation < 0)
+                Rotation = (float)(Math.PI * 2);
 
         }
 
@@ -98,8 +103,9 @@ namespace RaycastMapDemo
 
             // Translate the velocity based on the player's rotation
             Vector2 translatedMovement;
-            translatedMovement.X = velocity.X * (float)Math.Cos(Rotation) - velocity.Y * (float)Math.Sin(Rotation);
-            translatedMovement.Y = velocity.X * (float)Math.Sin(Rotation) + velocity.Y * (float)Math.Cos(Rotation);
+
+            translatedMovement.X = velocity.X * MathF.Cos(Rotation) + velocity.Y * MathF.Sin(Rotation);
+            translatedMovement.Y = -velocity.X * MathF.Sin(Rotation) + velocity.Y * MathF.Cos(Rotation);
 
             // Update player position
             X += translatedMovement.X;
