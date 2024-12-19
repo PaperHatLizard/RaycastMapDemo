@@ -39,34 +39,29 @@ namespace RaycastMapDemo
             KeyboardState keyboardState = Keyboard.GetState();
             MouseState mouseState = Mouse.GetState();
 
+            Vector2 movement = Vector2.Zero;
+
             if (keyboardState.IsKeyDown(Keys.W))
             {
-                Move(MathF.Cos(Rotation), MathF.Sin(Rotation), gameTime);
+                movement = new Vector2(MathF.Cos(Rotation), MathF.Sin(Rotation));
             }
 
             if (keyboardState.IsKeyDown(Keys.S))
             {
-                Move(-MathF.Cos(Rotation), -MathF.Sin(Rotation), gameTime);
+                movement = new Vector2(-MathF.Cos(Rotation), -MathF.Sin(Rotation));
             }
 
             if (keyboardState.IsKeyDown(Keys.A))
             {
-                Move(-MathF.Sin(Rotation), MathF.Cos(Rotation), gameTime);
+                movement = new Vector2(MathF.Sin(Rotation), -MathF.Cos(Rotation));
             }
 
             if (keyboardState.IsKeyDown(Keys.D))
             {
-                Move(MathF.Sin(Rotation), -MathF.Cos(Rotation), gameTime);
+                movement = new Vector2(-MathF.Sin(Rotation), MathF.Cos(Rotation));
             }
 
-            if (keyboardState.IsKeyDown(Keys.J))
-            {
-                this.Y = 6.9988f;
-            }
-            if (keyboardState.IsKeyDown(Keys.K))
-            {
-                this.Y = 7.00000001f;
-            }
+            Move(movement.X, movement.Y, gameTime);
 
             Vector2 mouseDelta = mousePosition - new Vector2(mouseState.X, mouseState.Y);
 
@@ -75,10 +70,10 @@ namespace RaycastMapDemo
             Rotation += mouseDelta.X * 0.01f;
 
             //Clamp rotation
-            if (Rotation >= Math.PI * 2)
+            if (Rotation >= Math.Tau)
                 Rotation = 0;
             else if (Rotation < 0)
-                Rotation = (float)(Math.PI * 2);
+                Rotation = (float)(Math.Tau);
 
         }
 
@@ -91,38 +86,53 @@ namespace RaycastMapDemo
             float velX = dx * Speed * delta;
             float velY = dy * Speed * delta;
 
-            // Calculate the predicted future position after movement
-            float newX = X + velX;
-            float newY = Y + velY;
-
-            // Check for collision at both the current and predicted positions
-            int currentMapValue = map.GetMapAt((int)Math.Round(X), (int)Math.Round(Y));
-            int newMapValue = map.GetMapAt((int)Math.Round(newX), (int)Math.Round(newY));
-
-            Debug.WriteLine("CurrentX: " + X + " CurrentY: " + Y);
-            Debug.WriteLine("newX: " + newX + " newY: " + newY);
-            Debug.WriteLine("currentMapValue: " + currentMapValue + " newMapValue: " + newMapValue);
-
-            // Disallow movement if there is a wall at the current or next position
-            //if (currentMapValue != 0 || newMapValue != 0)
-            //    return;
-
             // Apply the movement, translating the position based on rotation
             Vector2 velocity = new Vector2(velX, velY);
 
             // Translate the velocity based on the player's rotation
-            Vector2 translatedMovement;
 
-            translatedMovement.X = velocity.X * MathF.Cos(Rotation) + velocity.Y * MathF.Sin(Rotation);
-            translatedMovement.Y = -velocity.X * MathF.Sin(Rotation) + velocity.Y * MathF.Cos(Rotation);
+            Vector2 wallPosition = new Vector2((X + velocity.X), (Y + velocity.Y));
 
-            // Update player position
-            X += translatedMovement.X;
-            Y += translatedMovement.Y;
+            int nextMapPosition = map.GetMapAt((int)wallPosition.X, (int)wallPosition.Y);
+
+            if (nextMapPosition == 0)
+            {
+                X += velocity.X;
+                Y += velocity.Y;
+            }
+            else
+            {
+                Vector2 normal = CalculateWallNormal(wallPosition, velocity);
+
+                velocity = normal;
+
+                X += velocity.X;
+                Y += velocity.Y;
+            }
 
             X = (float)Math.Round(X, 2);
             Y = (float)Math.Round(Y, 2);
         }
+
+        public Vector2 CalculateWallNormal(Vector2 wallPosition, Vector2 velocity)
+        {
+            // Assuming the wall is axis-aligned, we can determine the normal based on the position
+            Vector2 normal = velocity;
+
+            // Check the horizontal and vertical boundaries
+            if (map.GetMapAt((int)wallPosition.X, (int)Y) != 0)
+            {
+                normal.X = -velocity.X * 0.001f;
+            }
+            if (map.GetMapAt((int)X, (int)wallPosition.Y) != 0)
+            {
+                normal.Y = -velocity.Y * 0.001f;
+            }
+
+            return normal;
+        }
+
+
 
 
     }
