@@ -57,12 +57,12 @@ namespace RaycastMapDemo
                 }
             }
 
-            SetMapAt(4, 4, 1);
-            SetMapAt(3, 2, 1);
-            SetMapAt(5, 4, 1);
-            SetMapAt(4, 7, 1);
-            SetMapAt(16, 4, 1);
-            SetMapAt(18, 5, 1);
+            SetMapAt(4, 4, 2);
+            SetMapAt(3, 2, 2);
+            SetMapAt(5, 4, 2);
+            SetMapAt(4, 7, 2);
+            SetMapAt(16, 4, 2);
+            SetMapAt(18, 5, 2);
 
         }
 
@@ -112,7 +112,8 @@ namespace RaycastMapDemo
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    Color color = map[x, y] == 0 ? Color.White : Color.Black;
+                    float colorValue = ((float)map[x, y]) / 100f;
+                    Color color = map[x, y] == 0 ? Color.White : new Color(colorValue, colorValue, colorValue);
                     if (map[x,y] == -2)
                     {
                         color = playerColor;

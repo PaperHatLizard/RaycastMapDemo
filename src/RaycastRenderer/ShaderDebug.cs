@@ -87,7 +87,7 @@ namespace RaycastMapDemo
             float tDeltaX = 1.0f / MathF.Abs(dx);
             float tDeltaY = 1.0f / MathF.Abs(dy);
 
-            int maxRayLength = 30;
+            int maxRayLength = 50;
             float lastSideHit = -1;
 
             for (int i = 0; i < maxRayLength; i++)

@@ -20,7 +20,15 @@ float4 MapValue;
 
 Texture2D SpriteTexture;
 texture2D MapTexture;
+Texture2D WallTexture;
 
+sampler SpriteTextureSampler : register(s0)
+{
+    Texture = <SpriteTexture>;
+    MinFilter = None;
+    MagFilter = None;
+    MipFilter = None;
+};
 sampler MapSampler : register(s1)
 {
     Texture = <MapTexture>;
@@ -28,9 +36,12 @@ sampler MapSampler : register(s1)
     MagFilter = None;
     MipFilter = None;
 };
-sampler SpriteTextureSampler : register(s0)
+sampler WallTextureSampler
 {
-    Texture = <SpriteTexture>;
+    Texture = <WallTexture>;
+    MinFilter = None;
+    MagFilter = None;
+    MipFilter = None;
 };
 
 struct VertexShaderInput
@@ -53,13 +64,13 @@ struct Line
     float2 End;
 };
 
-float2 Bresenham(float x0, float y0, float angle);
+float3 Bresenham(float x0, float y0, float angle);
 
 float2 MapToUVCoords(float2 mapCoords);
 
-int ShouldDrawWall(int row, int column);
+float4 ShouldDrawWall(int row, int column);
 
-float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int lastSideHit);
+float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int lastSideHit);
 
 float Frac(float value);
 
@@ -69,39 +80,29 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     
     float4 mapValue = tex2D(MapSampler, MapToUVCoords(MapSamplePoint));
     
-    float4 ceilingColor = float4(0.0, 0.33, 0.68, 1.0);
+    float4 ceilingColor = float4(0.0, 0.43, 0.7, 1.0);
     float4 floorColor = float4(0.02, 0.04, 0.05, 1.0);
+    float4 fogColor = float4(0.0, 0.0, 0.0, 1.0);
 
     // Calculate the coordinates of the screen
     int column = (input.TextureCoordinates.x * ScreenSize.x);
     int row = (input.TextureCoordinates.y * ScreenSize.y);
     
-    int drawWall = ShouldDrawWall(column, row);
+    float4 drawWall = ShouldDrawWall(column, row);
+    
+    float xCoord = drawWall.x;
+    float yCoord = drawWall.y;
+    float side = drawWall.z;
+    float distance = drawWall.a;
 
     // Set initial color to ceiling or floor color
     color = row < ScreenSize.y / 2 ? ceilingColor : floorColor;
     
-    // Draw wall according to face side
-    if (drawWall >= 1)
+    if (drawWall.a != 0)
     {
-        //X+
-        if (drawWall == 1)
-            color = float4(0, 0, 1, 0);
-        //X-
-        else if (drawWall == 2)
-            color = float4(0, 1, 0, 0);
-        //Y+
-        else if (drawWall == 3)
-            color = float4(1, 0, 0, 0);
-        //Y-
-        else if (drawWall == 4)
-            color = float4(0, 1, 1, 0);
-
-    }
-    
-    if (drawWall == -2)
-    {
-        color = float4(1, 1, 0, 1);
+        float2 textureCoords = float2(drawWall.x, drawWall.y);
+        color = tex2D(WallTextureSampler, textureCoords);
+        color = lerp(color, fogColor, distance / 10.0);
     }
     
     color.a = 1.0;
@@ -109,7 +110,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     return color;
 }
 
-int ShouldDrawWall(int column, int row)
+float4 ShouldDrawWall(int column, int row)
 {
     float wallHeight = 1;
     //range -1 to 1
@@ -121,30 +122,53 @@ int ShouldDrawWall(int column, int row)
     
     float2 lineStart = float2(PlayerPosition.x, PlayerPosition.y);
     
-    float2 sideAndDistance = Bresenham(lineStart.x, lineStart.y, angle);
+    float3 bresenhamCalc = Bresenham(lineStart.x, lineStart.y, angle);
     
-    float distance = sideAndDistance.y;
+    float side = bresenhamCalc.x;
+    
+    float distance = bresenhamCalc.y;
+    
+    float coord = bresenhamCalc.z;
     
     //Adjust for fish eye effect
     distance *= cos(PlayerRotation - angle);
+    
+    Line distanceLine =
+    {
+        lineStart,
+        lineStart + float2(cos(angle), sin(angle)) * distance
+    };
+    
+    float2 mapTexCoords = lineStart + float2(cos(angle), sin(angle)) * (distance * 1.1);
+    
     
     float adjustedWallHeight = wallHeight * ScreenSize.y / distance;
     float wallStart = (ScreenSize.y / 2.0) - (adjustedWallHeight / 2.0);
     float wallEnd = (ScreenSize.y / 2.0) + (adjustedWallHeight / 2.0);
 
+    float yCoord = wallEnd - wallStart;
+    
+    yCoord = (row - wallStart) / yCoord;
+    
+    
+    float2 TextureCoords = float2(coord, yCoord);
+    
+    
+    
     bool isWall = (row >= wallStart && row <= wallEnd);
 
-    if (distance < 0)
+    if (distance < 0 || !isWall)
     {
-        if (isWall)
-            return -2;
+        return float4(0, 0, 0, 0);
     }
     
-    return isWall ? sideAndDistance.x : 0;
+    
+    return float4(TextureCoords, side, distance);
+
 }
 
 
-float2 Bresenham(float x0, float y0, float angle)
+float3 Bresenham(float x0, float y0, float angle)
 {
     float dx = cos(angle);
     float dy = sin(angle);
@@ -173,22 +197,22 @@ float2 Bresenham(float x0, float y0, float angle)
         
         float4 mapValue = tex2D(MapSampler, MapToUVCoords(float2(xMap, yMap)));
         
-        if (mapValue.r != 1 && mapValue.g != 1 && mapValue.b != 1)
+        if (mapValue.r < 0.99 && mapValue.g < 0.99 && mapValue.b < 0.99)
         {
             if (lastSideHit == -1)
-                lastSideHit == 1;
+                lastSideHit = 1;
             
             Line startLine = { 
                 float2(x0, y0), 
                 float2(x0, y0) + float2(cos(angle), sin(angle)) * maxRayLength
             };
             
-            float distance = DistanceFromLineIntersection(startLine, float2(xPos, yPos), lastSideHit);
+            float2 distanceAndCoord = DistanceFromLineIntersection(startLine, float2(xPos, yPos), lastSideHit);
             
-            if (distance == -1)
-                return float2(-1, -1);
+            if (distanceAndCoord.x == -1)
+                return float3(-1, -1, -1);
             
-            return float2(lastSideHit, distance);
+            return float3(lastSideHit, distanceAndCoord);
         }
 
         if (tMaxX < tMaxY)
@@ -205,11 +229,10 @@ float2 Bresenham(float x0, float y0, float angle)
         }
     }
     
-    return float2(-1, -1);
+    return float3(-1, -1, -1);
 }
 
-
-float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int lastSideHit)
+float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int lastSideHit)
 {
     Line intersectLine;
     
@@ -218,28 +241,43 @@ float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int last
     
     float cellSize = 0.5;
     
+    bool isX;
+    
+    //X-
     if (lastSideHit == 1)
     {
         intersectLine.Start = float2(cellPosition.x - cellSize, cellPosition.y - cellSize);
         intersectLine.End = float2(cellPosition.x - cellSize, cellPosition.y + cellSize);
+        
+        isX = true;
     }
+    //X+
     else if (lastSideHit == 2)
     {
         intersectLine.Start = float2(cellPosition.x + cellSize, cellPosition.y - cellSize);
         intersectLine.End = float2(cellPosition.x + cellSize, cellPosition.y + cellSize);
+        
+        isX = true;
     }
+    //Y-
     else if (lastSideHit == 3)
     {
         intersectLine.Start = float2(cellPosition.x - cellSize, cellPosition.y - cellSize);
         intersectLine.End = float2(cellPosition.x + cellSize, cellPosition.y - cellSize);
+        
+        isX = false;
     }
+    //Y+
     else if (lastSideHit == 4)
     {
         intersectLine.Start = float2(cellPosition.x - cellSize, cellPosition.y + cellSize);
         intersectLine.End = float2(cellPosition.x + cellSize, cellPosition.y + cellSize);
+        
+        isX = false;
     }
     else
-        return -1;
+        return float2(-1, -1);
+
     
     float m1 = (startLine.End.y - startLine.Start.y) / (startLine.End.x - startLine.Start.x + 0.00001);
     float m2 = (intersectLine.End.y - intersectLine.Start.y) / (intersectLine.End.x - intersectLine.Start.x + 0.00001);
@@ -247,7 +285,7 @@ float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int last
     //If slopes are nearly identical then these lines probably dont intersect
     if (abs(m1 - m2) < 0.0001)
     {
-        return -1;
+        return float2(-1, -1);
     }
     
     float b1 = startLine.Start.y - m1 * startLine.Start.x;
@@ -258,7 +296,15 @@ float DistanceFromLineIntersection(Line startLine, float2 cellPosition, int last
     
     float2 intersection = float2(x, y);
     
-    return distance(startLine.Start, intersection);
+    float distToIntersect = distance(intersectLine.Start, intersection);
+    float distToEnd = distance(intersectLine.Start, intersectLine.End);
+    
+    float delta = distToIntersect / distToEnd;
+    
+    
+    
+    //Return distance of line and intersection coordinate
+    return float2(distance(startLine.Start, intersection), delta);
 }
 
 float Frac(float value)

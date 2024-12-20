@@ -17,7 +17,7 @@ namespace RaycastMapDemo
         public float Y = 0;
         public float Rotation { get; private set; }
         private Map map;
-        public float Speed = 3f;
+        public float Speed = 5f;
 
         public Player(float x, float y, float rotation, Map map)
         {
@@ -43,22 +43,22 @@ namespace RaycastMapDemo
 
             if (keyboardState.IsKeyDown(Keys.W))
             {
-                movement = new Vector2(MathF.Cos(Rotation), MathF.Sin(Rotation));
+                movement.X = 1;
             }
 
             if (keyboardState.IsKeyDown(Keys.S))
             {
-                movement = new Vector2(-MathF.Cos(Rotation), -MathF.Sin(Rotation));
+                movement.X = -1;
             }
 
             if (keyboardState.IsKeyDown(Keys.A))
             {
-                movement = new Vector2(MathF.Sin(Rotation), -MathF.Cos(Rotation));
+                movement.Y = -1;
             }
 
             if (keyboardState.IsKeyDown(Keys.D))
             {
-                movement = new Vector2(-MathF.Sin(Rotation), MathF.Cos(Rotation));
+                movement.Y = 1;
             }
 
             Move(movement.X, movement.Y, gameTime);
@@ -67,7 +67,7 @@ namespace RaycastMapDemo
 
             mousePosition = new Vector2(mouseState.X, mouseState.Y);
 
-            Rotation += mouseDelta.X * 0.01f;
+            Rotation -= mouseDelta.X * 0.01f;
 
             //Clamp rotation
             if (Rotation >= Math.Tau)
@@ -88,6 +88,10 @@ namespace RaycastMapDemo
 
             // Apply the movement, translating the position based on rotation
             Vector2 velocity = new Vector2(velX, velY);
+
+            Vector2 rotated = Vector2.Transform(velocity, Matrix.CreateRotationZ(Rotation));
+
+            velocity = rotated;
 
             // Translate the velocity based on the player's rotation
 
