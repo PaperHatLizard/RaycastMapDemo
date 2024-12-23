@@ -15,8 +15,7 @@ float2 PlayerPosition;
 float PlayerRotation;
 
 float2 MapSamplePoint;
-
-float4 MapValue;
+int WallTexturesCount;
 
 Texture2D SpriteTexture;
 texture2D MapTexture;
@@ -72,7 +71,6 @@ float4 ShouldDrawWall(int row, int column);
 
 float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int lastSideHit);
 
-float Frac(float value);
 
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
@@ -92,17 +90,26 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     
     float xCoord = drawWall.x;
     float yCoord = drawWall.y;
-    float side = drawWall.z;
+    float offset = drawWall.z;
     float distance = drawWall.a;
 
     // Set initial color to ceiling or floor color
     color = row < ScreenSize.y / 2 ? ceilingColor : floorColor;
     
-    if (drawWall.a != 0)
-    {
-        float2 textureCoords = float2(drawWall.x, drawWall.y);
+    //If a wall exists at this coordinate
+    if (distance != 0)
+    {   
+        float drawWallWidth = 1.0 / (WallTexturesCount);
+        
+        float adjustedxCoord = (drawWallWidth * xCoord) + offset;
+            
+        float2 textureCoords = float2(adjustedxCoord, yCoord);
+        
+        
+        //textureCoords.x += offset / drawWallWidth;
         color = tex2D(WallTextureSampler, textureCoords);
         color = lerp(color, fogColor, distance / 10.0);
+        
     }
     
     color.a = 1.0;
@@ -128,7 +135,9 @@ float4 ShouldDrawWall(int column, int row)
     
     float distance = bresenhamCalc.y;
     
-    float coord = bresenhamCalc.z;
+    float xCoord = bresenhamCalc.z;
+    
+    float2 mapTexCoords = lineStart + float2(cos(angle), sin(angle)) * (distance+0.1f);
     
     //Adjust for fish eye effect
     distance *= cos(PlayerRotation - angle);
@@ -139,8 +148,6 @@ float4 ShouldDrawWall(int column, int row)
         lineStart + float2(cos(angle), sin(angle)) * distance
     };
     
-    float2 mapTexCoords = lineStart + float2(cos(angle), sin(angle)) * (distance * 1.1);
-    
     
     float adjustedWallHeight = wallHeight * ScreenSize.y / distance;
     float wallStart = (ScreenSize.y / 2.0) - (adjustedWallHeight / 2.0);
@@ -150,24 +157,30 @@ float4 ShouldDrawWall(int column, int row)
     
     yCoord = (row - wallStart) / yCoord;
     
+    //Round to 2 decimal places to prevent noisy textures
+    yCoord = round(yCoord * 100) / 100;
     
-    float2 TextureCoords = float2(coord, yCoord);
     
+    float2 TextureCoords = float2(xCoord, yCoord);
     
+    //Calculate texture offset in the texture atlas using red channel of map texture
+    float offset = tex2D(MapSampler, MapToUVCoords(mapTexCoords)).r;
     
     bool isWall = (row >= wallStart && row <= wallEnd);
 
+    //Don't draw wall if dist is negative or if the wall is not in the range
     if (distance < 0 || !isWall)
     {
         return float4(0, 0, 0, 0);
     }
     
     
-    return float4(TextureCoords, side, distance);
+    return float4(TextureCoords, offset, distance);
 
 }
 
-
+//Bresenham's line algorithm for raycasting all pixels
+//Algorithm based off this stackO answer: https://stackoverflow.com/a/12934943/28842751
 float3 Bresenham(float x0, float y0, float angle)
 {
     float dx = cos(angle);
@@ -179,8 +192,8 @@ float3 Bresenham(float x0, float y0, float angle)
     float xPos = x0;
     float yPos = y0;
     
-    float tMaxX = xStep > 0 ? (1.0 - Frac(xPos)) / dx : Frac(xPos) / -dx;
-    float tMaxY = yStep > 0 ? (1.0 - Frac(yPos)) / dy : Frac(yPos) / -dy;
+    float tMaxX = xStep > 0 ? (1.0 - frac(xPos)) / dx : frac(xPos) / -dx;
+    float tMaxY = yStep > 0 ? (1.0 - frac(yPos)) / dy : frac(yPos) / -dy;
 
     float tDeltaX = 1.0 / abs(dx);
     float tDeltaY = 1.0 / abs(dy);
@@ -197,7 +210,8 @@ float3 Bresenham(float x0, float y0, float angle)
         
         float4 mapValue = tex2D(MapSampler, MapToUVCoords(float2(xMap, yMap)));
         
-        if (mapValue.r < 0.99 && mapValue.g < 0.99 && mapValue.b < 0.99)
+        //If the texture isn't white then this is a wall
+        if (mapValue.r < 0.99 || mapValue.g < 0.99 || mapValue.b < 0.99)
         {
             if (lastSideHit == -1)
                 lastSideHit = 1;
@@ -215,6 +229,7 @@ float3 Bresenham(float x0, float y0, float angle)
             return float3(lastSideHit, distanceAndCoord);
         }
 
+        //If we didn't find a wall yet, continue the ray
         if (tMaxX < tMaxY)
         {
             lastSideHit = dx > 0 ? 1 : 2;
@@ -229,6 +244,7 @@ float3 Bresenham(float x0, float y0, float angle)
         }
     }
     
+    //No wall found, return -1
     return float3(-1, -1, -1);
 }
 
@@ -236,6 +252,7 @@ float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int las
 {
     Line intersectLine;
     
+    //Center the cell position to make intersection line
     cellPosition.x = floor(cellPosition.x) + 0.5;
     cellPosition.y = floor(cellPosition.y) + 0.5;
     
@@ -243,6 +260,7 @@ float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int las
     
     bool isX;
     
+    //Check which side was hit last and create the "box" line from that side
     //X-
     if (lastSideHit == 1)
     {
@@ -275,9 +293,11 @@ float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int las
         
         isX = false;
     }
+    //This should never happen? Unless the ray somehow hits a wall before the for loop iterates once
     else
         return float2(-1, -1);
 
+    //Intersection algorithm based off https://www.geeksforgeeks.org/program-for-point-of-intersection-of-two-lines/
     
     float m1 = (startLine.End.y - startLine.Start.y) / (startLine.End.x - startLine.Start.x + 0.00001);
     float m2 = (intersectLine.End.y - intersectLine.Start.y) / (intersectLine.End.x - intersectLine.Start.x + 0.00001);
@@ -299,27 +319,23 @@ float2 DistanceFromLineIntersection(Line startLine, float2 cellPosition, int las
     float distToIntersect = distance(intersectLine.Start, intersection);
     float distToEnd = distance(intersectLine.Start, intersectLine.End);
     
+    //Calculate the distance from the start of the line to the intersection,
+    //this is our x coordinate in the texture
     float delta = distToIntersect / distToEnd;
     
     
     
-    //Return distance of line and intersection coordinate
+    //Return distance to the wall as well as our delta, x coordinate in the texture
     return float2(distance(startLine.Start, intersection), delta);
 }
-
-float Frac(float value)
-{
-    return value - floor(value);
-}
-
-
 
 float2 MapToUVCoords(float2 mapCoords)
 {
     //For some reason epsi is needed to prevent the texture
-    //from being sampled at the wrong position
+    //from being sampled at the wrong position and jittery/disappearing walls
     float x = (float(mapCoords.x) / float(MapSize.x));
     float y = (float(mapCoords.y) / float(MapSize.y));
+   
     float epsi = 0.0001;
     
     return float2(x + epsi, y + epsi);
